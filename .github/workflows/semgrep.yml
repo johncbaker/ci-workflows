@@ -1,0 +1,75 @@
+name: Semgrep (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      min-severity:
+        description: Minimum severity to ingest (error|warning|note|none)
+        type: string
+        default: warning
+      stakker-cli-ref:
+        description: Git ref of stakker-cli to install (branch, tag, or SHA)
+        type: string
+        default: main
+    secrets:
+      STAKKER_CLI_PAT:
+        required: true
+      STAKKER_API_TOKEN:
+        required: true
+      STAKKER_API_URL:
+        required: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep scan
+        continue-on-error: true
+        run: semgrep scan --config=p/default --sarif --output=findings.sarif
+
+      - name: Upload SARIF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-findings-${{ github.run_id }}
+          path: findings.sarif
+          if-no-files-found: warn
+
+      - name: Setup Node
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Stakker CLI
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          PAT: ${{ secrets.STAKKER_CLI_PAT }}
+          REF: ${{ inputs.stakker-cli-ref }}
+        run: |
+          AUTH_B64=$(printf "x-access-token:%s" "$PAT" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=Authorization: Basic $AUTH_B64" \
+            clone --depth 1 --branch "$REF" https://github.com/omnixi/stakker-cli.git /tmp/stakker-cli
+          cd /tmp/stakker-cli
+          npm install --no-audit --no-fund
+          npm install -g .
+
+      - name: Ingest findings into Stakker
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          STAKKER_API_TOKEN: ${{ secrets.STAKKER_API_TOKEN }}
+          STAKKER_API_URL: ${{ secrets.STAKKER_API_URL }}
+        run: |
+          stakker semgrep ingest findings.sarif \
+            --repo ${{ github.repository }} \
+            --min-severity ${{ inputs.min-severity }}
