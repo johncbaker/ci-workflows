@@ -1,0 +1,32 @@
+name: Stakker Transition (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label(s) as JSON string (e.g. "self-hosted" or "[\"self-hosted\",\"stakker\"]")
+        type: string
+        default: self-hosted
+    secrets:
+      STAKKER_API_URL:
+        required: true
+      STAKKER_API_TOKEN:
+        required: true
+
+jobs:
+  transition:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - name: Transition task to done
+        env:
+          BRANCH: ${{ github.head_ref }}
+          STAKKER_API: ${{ secrets.STAKKER_API_URL }}
+          STAKKER_TOKEN: ${{ secrets.STAKKER_API_TOKEN }}
+        run: |
+          REF=$(echo "$BRANCH" | tr '[:lower:]' '[:upper:]')
+          echo "Transitioning task $REF to done..."
+          curl -sf -X POST "${STAKKER_API}/api/v1/tasks/${REF}/transition" \
+            -H "Authorization: Bearer ${STAKKER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"status": "done", "comment": "PR merged to main via GitHub."}' \
+            || echo "Warning: Could not transition task $REF (may not exist or already done)"

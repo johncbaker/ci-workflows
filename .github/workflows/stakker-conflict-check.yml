@@ -1,0 +1,40 @@
+name: Stakker Conflict Check (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label(s) as JSON string
+        type: string
+        default: self-hosted
+    secrets:
+      STAKKER_API_URL:
+        required: true
+      STAKKER_API_TOKEN:
+        required: true
+
+jobs:
+  check:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - name: Bounce conflicting PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          STAKKER_API: ${{ secrets.STAKKER_API_URL }}
+          STAKKER_TOKEN: ${{ secrets.STAKKER_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          sleep 15
+          curl -sf -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100" | \
+          jq -r '.[] | select(.mergeable_state == "dirty") | .head.ref' | \
+          while read -r branch; do
+            REF=$(echo "$branch" | tr '[:lower:]' '[:upper:]')
+            echo "Conflicting: $branch -> $REF"
+            curl -s -X POST "${STAKKER_API}/api/v1/tasks/${REF}/transition" \
+              -H "Authorization: Bearer ${STAKKER_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"status": "changes_requested", "comment": "PR has merge conflicts with main. Rebase onto main before re-submitting."}' \
+              || true
+          done

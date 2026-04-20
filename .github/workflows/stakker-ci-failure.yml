@@ -1,0 +1,34 @@
+name: Stakker CI Failure (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label(s) as JSON string
+        type: string
+        default: self-hosted
+    secrets:
+      STAKKER_API_URL:
+        required: true
+      STAKKER_API_TOKEN:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    steps:
+      - name: Transition task to changes_requested
+        env:
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          STAKKER_API: ${{ secrets.STAKKER_API_URL }}
+          STAKKER_TOKEN: ${{ secrets.STAKKER_API_TOKEN }}
+        run: |
+          REF=$(echo "$BRANCH" | tr '[:lower:]' '[:upper:]')
+          PAYLOAD=$(jq -n --arg url "$RUN_URL" \
+            '{status: "changes_requested", comment: "CI failed on PR. Details: \($url)"}')
+          curl -s -X POST "${STAKKER_API}/api/v1/tasks/${REF}/transition" \
+            -H "Authorization: Bearer ${STAKKER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            || true
