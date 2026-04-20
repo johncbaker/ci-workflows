@@ -16,6 +16,8 @@ on:
 jobs:
   check:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      pull-requests: read
     steps:
       - name: Bounce conflicting PRs
         env:
@@ -26,10 +28,15 @@ jobs:
         run: |
           set -euo pipefail
           sleep 15
-          curl -sf -H "Authorization: Bearer ${GH_TOKEN}" \
-            "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100" | \
-          jq -r '.[] | select(.mergeable_state == "dirty") | .head.ref' | \
-          while read -r branch; do
+          numbers=$(curl -sf -H "Authorization: Bearer ${GH_TOKEN}" \
+                      "https://api.github.com/repos/${REPO}/pulls?state=open&per_page=100" \
+                    | jq -r '.[].number')
+          for num in $numbers; do
+            detail=$(curl -sf -H "Authorization: Bearer ${GH_TOKEN}" \
+                       "https://api.github.com/repos/${REPO}/pulls/${num}")
+            state=$(echo "$detail" | jq -r '.mergeable_state // "unknown"')
+            [ "$state" = "dirty" ] || continue
+            branch=$(echo "$detail" | jq -r '.head.ref')
             REF=$(echo "$branch" | tr '[:lower:]' '[:upper:]')
             echo "Conflicting: $branch -> $REF"
             curl -s -X POST "${STAKKER_API}/api/v1/tasks/${REF}/transition" \
