@@ -45,3 +45,32 @@ jobs:
 |---|---|---|
 | `min-severity` | `warning` | Minimum SARIF level to create a task for (`error`\|`warning`\|`note`\|`none`) |
 | `stakker-cli-ref` | `main` | Git ref of `stakker-cli` to install |
+
+## promote
+
+Force-pushes a tagged commit onto a long-lived deploy branch (default `production`). Use this to trigger a deploy pipeline that watches the `production` branch. The caller owns the tag-pattern trigger and the concurrency group.
+
+### Caller example
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  call:
+    uses: johncbaker/ci-workflows/.github/workflows/promote.yml@v1
+```
+
+### Inputs
+
+| Input | Default | Description |
+|---|---|---|
+| `target-branch` | `production` | Branch to force-push the tagged commit to. |
+| `runs-on` | `'"ubuntu-latest"'` | Runner label(s) as a JSON-encoded string. |

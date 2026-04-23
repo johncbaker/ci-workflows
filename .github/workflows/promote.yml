@@ -1,0 +1,29 @@
+name: Promote Tag (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      target-branch:
+        description: Branch to force-push the tagged commit to.
+        type: string
+        default: production
+      runs-on:
+        description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","stakker"]''.'
+        type: string
+        default: '"ubuntu-latest"'
+
+jobs:
+  promote:
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Promote tag to target branch
+        env:
+          TARGET_BRANCH: ${{ inputs.target-branch }}
+        run: |
+          git push --force origin "${GITHUB_SHA}:refs/heads/${TARGET_BRANCH}"
