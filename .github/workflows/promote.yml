@@ -10,7 +10,7 @@ on:
       runs-on:
         description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","stakker"]''.'
         type: string
-        default: '"ubuntu-latest"'
+        default: '"self-hosted"'
 
 jobs:
   promote:
