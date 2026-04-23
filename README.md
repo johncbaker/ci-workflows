@@ -60,7 +60,7 @@ on:
     tags: ['v*']
 
 concurrency:
-  group: deploy
+  group: promote
   cancel-in-progress: false
 
 jobs:
