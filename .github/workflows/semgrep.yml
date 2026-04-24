@@ -21,9 +21,21 @@ on:
 
 jobs:
   scan:
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux]
 
     steps:
+      - name: Reset workspace (handle root-owned leftovers on self-hosted)
+        shell: bash
+        run: |
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "docker not available; skipping workspace reset"
+            exit 0
+          fi
+          if [ -d "$GITHUB_WORKSPACE" ] && [ -n "$(ls -A "$GITHUB_WORKSPACE" 2>/dev/null)" ]; then
+            docker run --rm -v "$GITHUB_WORKSPACE:/ws" alpine:3 \
+              sh -c 'rm -rf /ws/..?* /ws/.[!.]* /ws/* 2>/dev/null || true'
+          fi
+
       - uses: actions/checkout@v4
 
       - name: Setup Python
@@ -58,9 +70,11 @@ jobs:
           REF: ${{ inputs.stakker-cli-ref }}
         run: |
           AUTH_B64=$(printf "x-access-token:%s" "$PAT" | base64 -w0)
+          CLI_DIR="${RUNNER_TEMP:-/tmp}/stakker-cli"
+          rm -rf "$CLI_DIR"
           git -c "http.https://github.com/.extraheader=Authorization: Basic $AUTH_B64" \
-            clone --depth 1 --branch "$REF" https://github.com/omnixi/stakker-cli.git /tmp/stakker-cli
-          cd /tmp/stakker-cli
+            clone --depth 1 --branch "$REF" https://github.com/omnixi/stakker-cli.git "$CLI_DIR"
+          cd "$CLI_DIR"
           npm install --no-audit --no-fund
           npm install -g .
 

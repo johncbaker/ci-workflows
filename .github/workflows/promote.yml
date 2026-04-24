@@ -8,9 +8,9 @@ on:
         type: string
         default: production
       runs-on:
-        description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","stakker"]''.'
+        description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","Linux"]''.'
         type: string
-        default: '"self-hosted"'
+        default: '["self-hosted","Linux"]'
 
 jobs:
   promote:
@@ -18,6 +18,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Reset workspace (handle root-owned leftovers on self-hosted)
+        shell: bash
+        run: |
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "docker not available; skipping workspace reset"
+            exit 0
+          fi
+          if [ -d "$GITHUB_WORKSPACE" ] && [ -n "$(ls -A "$GITHUB_WORKSPACE" 2>/dev/null)" ]; then
+            docker run --rm -v "$GITHUB_WORKSPACE:/ws" alpine:3 \
+              sh -c 'rm -rf /ws/..?* /ws/.[!.]* /ws/* 2>/dev/null || true'
+          fi
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
