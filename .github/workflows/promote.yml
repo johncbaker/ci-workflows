@@ -21,13 +21,20 @@ jobs:
       - name: Reset workspace (handle root-owned leftovers on self-hosted)
         shell: bash
         run: |
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "docker not available; skipping workspace reset"
+          if [ ! -d "$GITHUB_WORKSPACE" ] || [ -z "$(ls -A "$GITHUB_WORKSPACE" 2>/dev/null)" ]; then
             exit 0
           fi
-          if [ -d "$GITHUB_WORKSPACE" ] && [ -n "$(ls -A "$GITHUB_WORKSPACE" 2>/dev/null)" ]; then
+          rm -rf "$GITHUB_WORKSPACE"/..?* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/* 2>/dev/null || true
+          if [ -n "$(ls -A "$GITHUB_WORKSPACE" 2>/dev/null)" ] && command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+            sudo rm -rf "$GITHUB_WORKSPACE"/..?* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/* 2>/dev/null || true
+          fi
+          if [ -n "$(ls -A "$GITHUB_WORKSPACE" 2>/dev/null)" ] && command -v docker >/dev/null 2>&1; then
             docker run --rm -v "$GITHUB_WORKSPACE:/ws" alpine:3 \
               sh -c 'rm -rf /ws/..?* /ws/.[!.]* /ws/* 2>/dev/null || true'
+          fi
+          if [ -n "$(ls -A "$GITHUB_WORKSPACE" 2>/dev/null)" ]; then
+            echo "::warning::workspace not fully reset"
+            ls -la "$GITHUB_WORKSPACE"
           fi
 
       - uses: actions/checkout@v4
