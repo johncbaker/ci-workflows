@@ -14,7 +14,7 @@ on:
 
 jobs:
   promote:
-    runs-on: self-hosted
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
     permissions:
       contents: write
     steps:

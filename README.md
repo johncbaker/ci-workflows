@@ -66,11 +66,15 @@ concurrency:
 jobs:
   call:
     uses: johncbaker/ci-workflows/.github/workflows/promote.yml@v1
+    permissions:
+      contents: write
 ```
+
+Caller **must** grant `contents: write` — the reusable workflow force-pushes to the target branch and cannot escalate beyond the caller's permissions.
 
 ### Inputs
 
 | Input | Default | Description |
 |---|---|---|
 | `target-branch` | `production` | Branch to force-push the tagged commit to. |
-| `runs-on` | `'"ubuntu-latest"'` | Runner label(s) as a JSON-encoded string. |
+| `runs-on` | `'"self-hosted"'` | Runner label(s) as a JSON-encoded string. |
