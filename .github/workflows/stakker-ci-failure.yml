@@ -15,9 +15,43 @@ on:
 
 jobs:
   notify:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      actions: read
+      pull-requests: read
+      checks: read
     steps:
+      - name: Re-verify run conclusion and wait for PR rollup
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          status=$(gh api "repos/${REPO}/actions/runs/${RUN_ID}" --jq '.status')
+          conclusion=$(gh api "repos/${REPO}/actions/runs/${RUN_ID}" --jq '.conclusion')
+          echo "Run ${RUN_ID}: status=${status} conclusion=${conclusion}"
+          if [ "$status" != "completed" ] || [ "$conclusion" != "failure" ]; then
+            echo "Run is not a confirmed failure; skipping bounce."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pr=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/pulls" --jq '.[0].number // empty')
+          if [ -n "$pr" ]; then
+            for i in $(seq 1 30); do
+              pending=$(gh pr view "$pr" --repo "$REPO" --json statusCheckRollup \
+                        --jq '[.statusCheckRollup[] | select(.status == "QUEUED" or .status == "IN_PROGRESS" or .state == "PENDING")] | length')
+              echo "Attempt $i: pending=$pending"
+              [ "$pending" = "0" ] && break
+              sleep 20
+            done
+          fi
+
       - name: Transition task to changes_requested
+        if: ${{ steps.verify.outputs.skip != 'true' }}
         env:
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
