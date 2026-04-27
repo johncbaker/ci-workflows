@@ -8,9 +8,9 @@ on:
         type: string
         default: production
       runs-on:
-        description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","Linux"]''.'
+        description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","ci"]''.'
         type: string
-        default: '["self-hosted","Linux"]'
+        default: '["self-hosted","ci"]'
 
 jobs:
   promote:

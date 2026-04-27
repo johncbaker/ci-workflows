@@ -21,7 +21,7 @@ on:
 
 jobs:
   scan:
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, ci]
 
     steps:
       - name: Reset workspace (handle root-owned leftovers on self-hosted)

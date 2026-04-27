@@ -4,9 +4,9 @@ on:
   workflow_call:
     inputs:
       runs-on:
-        description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","Linux"]''.'
+        description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","stakker"]''.'
         type: string
-        default: '["self-hosted","Linux"]'
+        default: '["self-hosted","stakker"]'
     secrets:
       STAKKER_API_URL:
         required: true
