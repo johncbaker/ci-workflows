@@ -42,6 +42,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+        env:
+          # Self-hosted runners: keep setup-python's tool cache inside the
+          # runner's own _work/_tool dir. Without this it defaults to the
+          # GitHub-hosted path /Users/runner/hostedtoolcache and fails with
+          # "mkdir: /Users/runner: Permission denied".
+          AGENT_TOOLSDIRECTORY: ${{ runner.tool_cache }}
 
       - name: Install Semgrep
         run: pip install semgrep
