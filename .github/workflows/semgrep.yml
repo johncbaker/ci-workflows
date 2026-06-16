@@ -38,19 +38,21 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-        env:
-          # Self-hosted runners: keep setup-python's tool cache inside the
-          # runner's own _work/_tool dir. Without this it defaults to the
-          # GitHub-hosted path /Users/runner/hostedtoolcache and fails with
-          # "mkdir: /Users/runner: Permission denied".
-          AGENT_TOOLSDIRECTORY: ${{ runner.tool_cache }}
-
       - name: Install Semgrep
-        run: pip install semgrep
+        shell: bash
+        run: |
+          # Self-hosted macOS runner: actions/setup-python@v5 unconditionally
+          # hardcodes its tool cache to /Users/runner/hostedtoolcache on macOS
+          # (it overwrites AGENT_TOOLSDIRECTORY before reading it), so on a
+          # cache miss it fails with "mkdir: /Users/runner: Permission denied"
+          # — there is no `runner` user on this host. Install semgrep via the
+          # host package manager instead of setup-python + pip.
+          if command -v brew >/dev/null 2>&1; then
+            brew list semgrep >/dev/null 2>&1 || brew install semgrep
+          else
+            python3 -m pip install --user --break-system-packages semgrep
+          fi
+          semgrep --version
 
       - name: Run Semgrep scan
         continue-on-error: true
