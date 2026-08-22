@@ -77,4 +77,4 @@ Caller **must** grant `contents: write` — the reusable workflow force-pushes t
 | Input | Default | Description |
 |---|---|---|
 | `target-branch` | `production` | Branch to force-push the tagged commit to. |
-| `runs-on` | `'"self-hosted"'` | Runner label(s) as a JSON-encoded string. |
+| `runs-on` | `'"ubuntu-latest"'` | Runner label(s) as a JSON-encoded string. |
