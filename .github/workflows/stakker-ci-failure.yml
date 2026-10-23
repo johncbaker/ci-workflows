@@ -15,7 +15,8 @@ on:
 
 jobs:
   notify:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    # never for a fork's run: its branch name would pick which task this repo's token transitions
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.head_repository.full_name == github.repository }}
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
       - name: Transition task to changes_requested
@@ -26,6 +27,11 @@ jobs:
           STAKKER_TOKEN: ${{ secrets.STAKKER_API_TOKEN }}
         run: |
           REF=$(echo "$BRANCH" | tr '[:lower:]' '[:upper:]')
+          # only a task reference (PREFIX-NNN) may reach the URL path
+          if ! [[ "$REF" =~ ^[A-Z0-9]+-[0-9]+$ ]]; then
+            echo "Branch '$BRANCH' is not a Stakker task reference; nothing to transition."
+            exit 0
+          fi
           PAYLOAD=$(jq -n --arg url "$RUN_URL" \
             '{status: "changes_requested", comment: "CI failed on PR. Details: \($url)"}')
           curl -s -X POST "${STAKKER_API}/api/v1/tasks/${REF}/transition" \

@@ -36,8 +36,12 @@ jobs:
                        "https://api.github.com/repos/${REPO}/pulls/${num}")
             state=$(echo "$detail" | jq -r '.mergeable_state // "unknown"')
             [ "$state" = "dirty" ] || continue
+            # a fork's branch name must not choose which task this repo's token transitions
+            head_repo=$(echo "$detail" | jq -r '.head.repo.full_name // ""')
+            [ "$head_repo" = "$REPO" ] || { echo "Skipping fork PR #$num ($head_repo)"; continue; }
             branch=$(echo "$detail" | jq -r '.head.ref')
             REF=$(echo "$branch" | tr '[:lower:]' '[:upper:]')
+            [[ "$REF" =~ ^[A-Z0-9]+-[0-9]+$ ]] || { echo "Skipping #$num: '$branch' is not a task reference"; continue; }
             echo "Conflicting: $branch -> $REF"
             curl -s -X POST "${STAKKER_API}/api/v1/tasks/${REF}/transition" \
               -H "Authorization: Bearer ${STAKKER_TOKEN}" \
