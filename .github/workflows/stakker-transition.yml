@@ -24,6 +24,11 @@ jobs:
           STAKKER_TOKEN: ${{ secrets.STAKKER_API_TOKEN }}
         run: |
           REF=$(echo "$BRANCH" | tr '[:lower:]' '[:upper:]')
+          # only a task reference (PREFIX-NNN) may reach the URL path
+          if ! [[ "$REF" =~ ^[A-Z0-9]+-[0-9]+$ ]]; then
+            echo "Branch '$BRANCH' is not a Stakker task reference; nothing to transition."
+            exit 0
+          fi
           echo "Transitioning task $REF to done..."
           curl -sf -X POST "${STAKKER_API}/api/v1/tasks/${REF}/transition" \
             -H "Authorization: Bearer ${STAKKER_TOKEN}" \
