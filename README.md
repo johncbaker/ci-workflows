@@ -83,3 +83,7 @@ Caller **must** grant `contents: write` — the reusable workflow force-pushes t
 |---|---|---|
 | `target-branch` | `production` | Branch to force-push the tagged commit to. |
 | `runs-on` | `'"ubuntu-latest"'` | Runner label(s) as a JSON-encoded string. |
+
+## Stakker task transitions
+
+The former `stakker-transition`, `stakker-conflict-check` and `stakker-ci-failure` reusable workflows are gone. Stakker now receives these events from its GitHub App webhook (`POST /api/v1/webhooks/github` in stakker-api), so they cost no runner minutes. See `docs/github-app-webhooks.md` in stakker-api.
