@@ -4,7 +4,7 @@ Reusable GitHub Actions workflows shared across all my projects.
 
 ## semgrep
 
-Runs Semgrep on every PR and push to `main`, uploads SARIF as an artifact, and on `main` pushes (and manual dispatches) ingests findings as Stakker tasks via `stakker-cli`.
+Runs Semgrep (and optionally Gitleaks) on every PR and push to `main` in a single job, uploads SARIF as an artifact, and on `main` pushes (and manual dispatches) ingests findings as Stakker tasks via `stakker-cli`.
 
 ### Caller example
 
@@ -45,6 +45,11 @@ jobs:
 |---|---|---|
 | `min-severity` | `warning` | Minimum SARIF level to create a task for (`error`\|`warning`\|`note`\|`none`) |
 | `stakker-cli-ref` | `main` | Git ref of `stakker-cli` to install |
+| `semgrep-version` | `1.183.0` | Pinned Semgrep release, installed into a cached virtualenv |
+| `gitleaks` | `false` | Also run Gitleaks over the new commits (PR or push range) in the same job |
+| `runs-on` | Blacksmith 2 vCPU | Runner label(s) as a JSON string |
+
+One job covers both scanners, so repos that also used a separate `gitleaks.yml` should pass `gitleaks: true` here and delete that file. On pull requests Semgrep is diff-aware (only new findings); pushes to `main` run a full scan for ingest.
 
 ## promote
 

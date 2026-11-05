@@ -1,5 +1,16 @@
 name: Semgrep (reusable)
 
+# One security job per event: Semgrep, plus Gitleaks when `gitleaks: true`.
+# Replaces separate semgrep + gitleaks jobs (two runner minutes per event).
+#
+#   - Semgrep is pinned and installed into a cached virtualenv, so most runs
+#     skip the ~40s `pip install`.
+#   - On pull requests Semgrep is diff-aware (--baseline-commit): only
+#     findings the PR introduces are reported. Pushes to main still run a
+#     full scan, which is what gets ingested into Stakker.
+#   - Gitleaks scans only the commits being added (PR range or push range).
+#     History was already scanned clean; workflow_dispatch scans everything.
+
 on:
   workflow_call:
     inputs:
@@ -11,6 +22,14 @@ on:
         description: Git ref of stakker-cli to install (branch, tag, or SHA)
         type: string
         default: main
+      semgrep-version:
+        description: Semgrep release to install (pinned so the cached venv stays valid)
+        type: string
+        default: '1.183.0'
+      gitleaks:
+        description: Also scan the new commits for secrets with gitleaks
+        type: boolean
+        default: false
       runs-on:
         description: 'Runner label(s) as JSON-encoded string. Single: ''"blacksmith-2vcpu-ubuntu-2404"''. Array: ''["self-hosted","ci"]''.'
         type: string
@@ -23,26 +42,96 @@ on:
       STAKKER_API_URL:
         required: true
 
+env:
+  GITLEAKS_VERSION: 8.30.1
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
 jobs:
   scan:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the PR/push range must exist locally for both the
+          # Semgrep baseline and the Gitleaks commit range.
+          fetch-depth: 0
 
+      - name: Work out the commit range
+        id: range
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base=""
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$PR_BASE"
+          elif [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            base="$PUSH_BEFORE"
+          fi
+          # A force-push can leave `before` unreachable; fall back to a full scan.
+          if [ -n "$base" ] && ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base=""
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      # ---------- Gitleaks ----------
+      # The CLI, not gitleaks-action: the action needs a paid licence for org repos.
+      - name: Gitleaks — scan new commits
+        if: inputs.gitleaks
+        env:
+          BASE: ${{ steps.range.outputs.base }}
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          dir="${RUNNER_TEMP}/gitleaks"
+          mkdir -p "$dir"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}" -o "$dir/$tarball"
+          echo "${GITLEAKS_SHA256}  $dir/$tarball" | sha256sum -c -
+          tar -xzf "$dir/$tarball" -C "$dir" gitleaks
+          if [ -n "$BASE" ]; then
+            echo "Scanning ${BASE}..${GITHUB_SHA}"
+            "$dir/gitleaks" git --redact --no-banner --exit-code 1 --log-opts="${BASE}..${GITHUB_SHA}" .
+          else
+            echo "No base commit; scanning full history"
+            "$dir/gitleaks" git --redact --no-banner --exit-code 1 .
+          fi
+
+      # ---------- Semgrep ----------
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: '3.12'
 
-      - name: Install Semgrep
-        run: python -m pip install semgrep
+      - name: Restore Semgrep virtualenv
+        id: semgrep-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.semgrep-venv
+          key: semgrep-${{ inputs.semgrep-version }}-${{ runner.os }}-${{ runner.arch }}-py${{ steps.python.outputs.python-version }}
 
-      - name: Show Semgrep version
-        run: semgrep --version
+      - name: Install Semgrep
+        if: steps.semgrep-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m venv ~/.semgrep-venv
+          ~/.semgrep-venv/bin/pip install --quiet "semgrep==${{ inputs.semgrep-version }}"
 
       - name: Run Semgrep scan
         continue-on-error: true
-        run: semgrep scan --config=p/default --sarif --output=findings.sarif
+        env:
+          BASE: ${{ steps.range.outputs.base }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          baseline=()
+          # Diff-aware on PRs only; main pushes stay full scans for ingest.
+          if [ "$EVENT" = "pull_request" ] && [ -n "$BASE" ]; then
+            baseline=(--baseline-commit "$BASE")
+          fi
+          ~/.semgrep-venv/bin/semgrep scan --config=p/default --sarif --output=findings.sarif "${baseline[@]}"
 
       - name: Upload SARIF artifact
         uses: actions/upload-artifact@v4

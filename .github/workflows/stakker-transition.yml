@@ -16,6 +16,7 @@ on:
 jobs:
   transition:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
+    timeout-minutes: 10
     steps:
       - name: Transition task to done
         env:
