@@ -4,7 +4,7 @@ Reusable GitHub Actions workflows shared across all my projects.
 
 ## semgrep
 
-Runs Semgrep (and optionally Gitleaks) on every PR and push to `main` in a single job, uploads SARIF as an artifact, and on `main` pushes (and manual dispatches) ingests findings as Stakker tasks via `stakker-cli`.
+Runs Semgrep (and optionally Gitleaks) on every PR and push to `main` in a single job, uploads SARIF as an artifact, and on `main` pushes (and manual dispatches) ingests findings as Stakker tasks via `stakker-cli` (set `stakker-ingest: false` to skip that, and pass no Stakker secrets).
 
 ### Caller example
 
@@ -35,7 +35,7 @@ jobs:
 
 | Secret | Purpose |
 |---|---|
-| `STAKKER_CLI_PAT` | Fine-grained PAT with Contents: Read on `omnixi/stakker-cli` |
+| `STAKKER_CLI_PAT` | Fine-grained PAT with Contents: Read on `johncbaker/stakker-cli` (only with `stakker-ingest`) |
 | `STAKKER_API_TOKEN` | Stakker API token with `tasks:write` |
 | `STAKKER_API_URL` | Base URL of the Stakker API |
 
@@ -44,6 +44,7 @@ jobs:
 | Input | Default | Description |
 |---|---|---|
 | `min-severity` | `warning` | Minimum SARIF level to create a task for (`error`\|`warning`\|`note`\|`none`) |
+| `stakker-ingest` | `true` | Send `main` findings to Stakker; `false` needs no Stakker secrets |
 | `stakker-cli-ref` | `main` | Git ref of `stakker-cli` to install |
 | `semgrep-version` | `1.183.0` | Pinned Semgrep release, installed into a cached virtualenv |
 | `gitleaks` | `false` | Also run Gitleaks over the new commits (PR or push range) in the same job |
