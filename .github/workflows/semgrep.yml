@@ -7,7 +7,8 @@ name: Semgrep (reusable)
 #     skip the ~40s `pip install`.
 #   - On pull requests Semgrep is diff-aware (--baseline-commit): only
 #     findings the PR introduces are reported. Pushes to main still run a
-#     full scan, which is what gets ingested into Stakker.
+#     full scan, which is what gets ingested into Stakker (unless the caller
+#     sets `stakker-ingest: false`, when no Stakker secrets are needed).
 #   - Gitleaks scans only the commits being added (PR range or push range).
 #     History was already scanned clean; workflow_dispatch scans everything.
 
@@ -18,6 +19,10 @@ on:
         description: Minimum severity to ingest (error|warning|note|none)
         type: string
         default: warning
+      stakker-ingest:
+        description: Send main-branch findings to Stakker (needs the STAKKER_* secrets)
+        type: boolean
+        default: true
       stakker-cli-ref:
         description: Git ref of stakker-cli to install (branch, tag, or SHA)
         type: string
@@ -36,11 +41,11 @@ on:
         default: '"blacksmith-2vcpu-ubuntu-2404"'
     secrets:
       STAKKER_CLI_PAT:
-        required: true
+        required: false
       STAKKER_API_TOKEN:
-        required: true
+        required: false
       STAKKER_API_URL:
-        required: true
+        required: false
 
 env:
   GITLEAKS_VERSION: 8.30.1
@@ -141,13 +146,13 @@ jobs:
           if-no-files-found: warn
 
       - name: Setup Node
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: inputs.stakker-ingest && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0 @ 2026-10-08
         with:
           node-version: '22'
 
       - name: Install Stakker CLI
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: inputs.stakker-ingest && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           PAT: ${{ secrets.STAKKER_CLI_PAT }}
           REF: ${{ inputs.stakker-cli-ref }}
@@ -156,13 +161,13 @@ jobs:
           CLI_DIR="${RUNNER_TEMP:-/tmp}/stakker-cli"
           rm -rf "$CLI_DIR"
           git -c "http.https://github.com/.extraheader=Authorization: Basic $AUTH_B64" \
-            clone --depth 1 --branch "$REF" https://github.com/omnixi/stakker-cli.git "$CLI_DIR"
+            clone --depth 1 --branch "$REF" https://github.com/johncbaker/stakker-cli.git "$CLI_DIR"
           cd "$CLI_DIR"
           npm install --no-audit --no-fund
           npm install -g .
 
       - name: Ingest findings into Stakker
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: inputs.stakker-ingest && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           STAKKER_API_TOKEN: ${{ secrets.STAKKER_API_TOKEN }}
           STAKKER_API_URL: ${{ secrets.STAKKER_API_URL }}
