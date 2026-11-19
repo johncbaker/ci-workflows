@@ -36,9 +36,9 @@ on:
         type: boolean
         default: false
       runs-on:
-        description: 'Runner label(s) as JSON-encoded string. Single: ''"blacksmith-2vcpu-ubuntu-2404"''. Array: ''["self-hosted","ci"]''.'
+        description: 'Runner label(s) as JSON-encoded string. Single: ''"ubuntu-latest"''. Array: ''["self-hosted","ci"]''.'
         type: string
-        default: '"blacksmith-2vcpu-ubuntu-2404"'
+        default: '"ubuntu-latest"'
     secrets:
       STAKKER_CLI_PAT:
         required: false
